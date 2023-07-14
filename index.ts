@@ -10,6 +10,8 @@ import {
 } from "./apiCache";
 dotenv.config();
 
+const EXPRESS_PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
+
 const { SPOONACULAR_API_KEY } = process.env;
 if (SPOONACULAR_API_KEY == null) {
   console.error("API Key not provided in .env");
@@ -128,6 +130,6 @@ app.use(async (req, res) => {
     });
 });
 
-app.listen(8080, () => {
-  console.log("Express listening on port 8080");
+app.listen(EXPRESS_PORT, () => {
+  console.log("Express listening on port " + EXPRESS_PORT);
 });
