@@ -62,10 +62,24 @@ process.on("exit", () => {
   );
 });
 
+const getTimestamp = () =>
+  "[" + new Date().toISOString().replace("T", " ").split(".")[0] + " UTC]";
+
+const parseParams = (query: { [key: string]: any }) =>
+  new URLSearchParams(query);
+
+const sanitizeParams = (params: URLSearchParams, toDelete: string[]) => {
+  toDelete.forEach((paramName) => params.has(paramName) && params.delete(paramName));
+};
+
 const app = express();
 app.use(cors());
 
 app.use(async (req, res) => {
+  const params = parseParams(req.query);
+  sanitizeParams(params, ["apiKey"]);
+  const url = req.url.split("?")[0] + "?" + params.toString();
+  console.log(getTimestamp(), "IN", req.method, url);
   const cacheKey = `${req.method} ${req.url}`;
   if (cache.has(cacheKey)) {
     const item = cache.get(cacheKey)!;
@@ -81,7 +95,8 @@ app.use(async (req, res) => {
     }
   }
 
-  console.log("SENDING REQUEST");
+  console.log(getTimestamp(), "OUT", req.method, SPOONACULAR_API_BASE_URL + url);
+
   spoonacularAxios
     .request({
       method: req.method,
