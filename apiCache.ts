@@ -50,7 +50,13 @@ export class LocalCache implements ApiCache {
   }
 
   private static tryLoadFromJson(): Map<string, CacheEntry> {
-    return JSON.parse(readFileSync("cache.json").toString(), (_, value) => {
+    let fileString: string | undefined = undefined;
+    try {
+      const fileContent = readFileSync("cache.json");
+      fileString = fileContent.toString();
+    } catch(_) {}
+
+    return JSON.parse(fileString ?? "{}", (_, value) => {
       if (typeof value === "object" && value !== null) {
         if (value.dataType === "Map") {
           return new Map<string, CacheEntry>(value.value);
