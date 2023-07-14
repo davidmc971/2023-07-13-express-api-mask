@@ -1,8 +1,13 @@
-import express, { response } from "express";
+import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import axios from "axios";
-import { readFileSync, writeFileSync } from "fs";
+import {
+  ApiCache,
+  CACHE_TTL_SECONDS,
+  LocalCache,
+  RedisCache,
+} from "./apiCache";
 dotenv.config();
 
 const { SPOONACULAR_API_KEY } = process.env;
@@ -19,47 +24,22 @@ const spoonacularAxios = axios.create({
   },
 });
 
-const CACHE_TTL_SECONDS = 1800;
+let cache: ApiCache;
 
-interface CacheEntry {
-  data: any | null;
-  timeStored: number;
-  status: number;
-}
+RedisCache.new()
+  .then((redisCache) => {
+    console.log("Setting Redis Cache");
+    cache = redisCache;
+  })
+  .catch((error) => {
+    console.error(error);
+    console.log("Setting Local Cache");
+    cache = new LocalCache();
+  });
 
-// Very helpful for serializing Map:
-// https://stackoverflow.com/questions/29085197/how-do-you-json-stringify-an-es6-map
-
-const cacheJson = JSON.parse(
-  readFileSync("cache.json").toString(),
-  (_, value) => {
-    if (typeof value === "object" && value !== null) {
-      if (value.dataType === "Map") {
-        return new Map(value.value);
-      }
-    }
-    return value;
-  }
-);
-
-const cache =
-  cacheJson instanceof Map ? cacheJson : new Map<string, CacheEntry>();
-
-process.on("exit", () => {
+process.on("exit", async () => {
   console.log("process exiting");
-  writeFileSync(
-    "cache.json",
-    JSON.stringify(cache, (_, value) => {
-      if (value instanceof Map) {
-        return {
-          dataType: "Map",
-          value: Array.from(value.entries()), // or with spread: value: [...value]
-        };
-      } else {
-        return value;
-      }
-    })
-  );
+  await cache.persist();
 });
 
 const getTimestamp = () =>
@@ -86,8 +66,8 @@ app.use(async (req, res) => {
   }
   console.log(getTimestamp(), "IN", req.method, url);
   const cacheKey = `${req.method} ${req.url}`;
-  if (cache.has(cacheKey)) {
-    const item = cache.get(cacheKey)!;
+  const item = await cache.get(cacheKey);
+  if (item != null) {
     if (Date.now() - item.timeStored < CACHE_TTL_SECONDS * 1000) {
       if (item.data === null) {
         res.sendStatus(item.status);
